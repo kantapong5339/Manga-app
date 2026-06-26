@@ -1,3 +1,28 @@
+// ==========================================
+// 🌟 แก้บั๊ก Electron: อาการค้าง/พิมพ์ไม่ได้หลังปิดป๊อปอัพ (Alert/Confirm)
+// ==========================================
+const originalAlert = window.alert;
+window.alert = function(message) {
+    originalAlert(message);
+    // สั่งให้แอปดึงโฟกัสคีย์บอร์ดกลับมาทันทีที่ปิดป๊อปอัพ
+    setTimeout(() => {
+        window.focus();
+        if (document.activeElement) document.activeElement.blur();
+    }, 10);
+};
+
+const originalConfirm = window.confirm;
+window.confirm = function(message) {
+    const result = originalConfirm(message);
+    // สั่งให้แอปดึงโฟกัสคีย์บอร์ดกลับมาทันทีที่ปิดป๊อปอัพ
+    setTimeout(() => {
+        window.focus();
+        if (document.activeElement) document.activeElement.blur();
+    }, 10);
+    return result;
+};
+// ==========================================
+
 const fs = require('fs');
 const path = require('path');
 
@@ -58,7 +83,10 @@ function saveData() {
 function getCoverPath(coverName) {
     if (!coverName) return '';
     if (coverName.startsWith('data:image')) return coverName; // รองรับรูปเก่าที่เคยเซฟแบบ Base64
-    return `data/images/${coverName}`; // รูปแบบใหม่ ดึงจากโฟลเดอร์ images
+    
+    // 🌟 ดึงที่อยู่เต็มของไฟล์ในเครื่อง และแปลงให้โปรแกรมอ่านได้ชัวร์ๆ (เติม file:///)
+    const fullPath = path.join(imgDir, coverName);
+    return `file:///${fullPath.replace(/\\/g, '/')}`; 
 }
 
 window.onload = function() {
@@ -74,17 +102,38 @@ function handleImageUpload(e) {
     const file = e.target.files[0];
     if (!file) return;
 
-    // ดึงที่อยู่ไฟล์ต้นฉบับจากคอมพิวเตอร์ของคุณ
-    const sourcePath = file.path; 
-    const fileExt = path.extname(sourcePath);
-    const fileName = 'cover_' + Date.now() + fileExt; // ตั้งชื่อไฟล์ใหม่กันซ้ำ
-    const destPath = path.join(imgDir, fileName); // ที่อยู่โฟลเดอร์ปลายทาง
+    try {
+        let sourcePath = file.path; 
+        
+        // 🌟 ทริคสำหรับ Electron เวอร์ชั่นใหม่ที่ซ่อน path เอาไว้
+        try {
+            const { webUtils } = require('electron');
+            if (webUtils && webUtils.getPathForFile) {
+                sourcePath = webUtils.getPathForFile(file);
+            }
+        } catch (err) {
+            // ถ้าดึงไม่ได้ ให้ข้ามไปใช้ file.path แบบเดิม
+        }
 
-    // ก๊อปปี้ไฟล์ต้นฉบับไปเก็บที่ data/images/
-    fs.copyFileSync(sourcePath, destPath);
-    
-    currentImage = fileName; // จำแค่ชื่อไฟล์พอ
-    alert("โหลดรูปภาพต้นฉบับสำเร็จแล้ว!");
+        if (!sourcePath) {
+            alert("❌ ระบบถูกบล็อก ไม่สามารถอ่านที่อยู่ไฟล์ต้นฉบับได้ครับ");
+            return;
+        }
+
+        const fileExt = path.extname(sourcePath);
+        const fileName = 'cover_' + Date.now() + fileExt; // ตั้งชื่อไฟล์ใหม่กันซ้ำ
+        const destPath = path.join(imgDir, fileName); // ที่อยู่โฟลเดอร์ปลายทาง
+
+        // ก๊อปปี้ไฟล์ต้นฉบับไปเก็บที่ data/images/
+        fs.copyFileSync(sourcePath, destPath);
+        
+        currentImage = fileName; // จำแค่ชื่อไฟล์
+        alert("✅ โหลดรูปภาพต้นฉบับสำเร็จแล้ว!");
+
+    } catch (error) {
+        // เพิ่ม Alert บอกสาเหตุชัดๆ หากเกิดปัญหา
+        alert("❌ เกิดข้อผิดพลาดในการเซฟรูปลงโฟลเดอร์: " + error.message);
+    }
 }
 
 // ==========================================
@@ -307,23 +356,43 @@ function renderTagSelects() {
     if (warningSelect) warningSelect.innerHTML = '<option value="">-- เลือกคำเตือน --</option>' + masterWarningTags.map(t => `<option value="${t}">${t}</option>`).join('');
 }
 
+// --- ฟังก์ชันเวลาพอกดปุ่ม "อัปเดต" ตัวเลือกแท็ก ---
 function editMasterTags(type) {
     let list = type === 'normal' ? masterTags : masterWarningTags;
-    let title = type === 'normal' ? 'แท็กทั่วไป' : 'แท็กเตือน';
-    let action = prompt(`⚙️ จัดการรายการตัวเลือก: ${title}\n\nรายการที่มีตอนนี้: ${list.join(', ')}\n\n👉 พิมพ์ชื่อแท็กใหม่เพื่อ "เพิ่ม"\n👉 หรือพิมพ์ใส่เครื่องหมายลบด้านหน้าเพื่อ "ลบ" (เช่น -Action)`);
-    if (!action) return;
+    let inputId = type === 'normal' ? 'manage-tag-normal' : 'manage-tag-warning';
+    let inputElem = document.getElementById(inputId);
+    let action = inputElem.value;
+
+    if (!action || action.trim() === '') {
+        alert('กรุณาพิมพ์ชื่อแท็กที่ต้องการจัดการครับ');
+        return; 
+    }
+    
     action = action.trim();
+
     if (action.startsWith('-')) {
+        // ถ้านำหน้าด้วย - แปลว่าต้องการลบ
         let tagToRemove = action.substring(1).trim();
         let index = list.indexOf(tagToRemove);
-        if (index > -1) { list.splice(index, 1); alert(`🗑️ ลบแท็ก "${tagToRemove}" ออกแล้ว`); } 
-        else { alert(`❌ ไม่พบแท็ก "${tagToRemove}" ให้ลบครับ`); }
+        if (index > -1) { 
+            list.splice(index, 1); 
+            alert(`🗑️ ลบแท็ก "${tagToRemove}" ออกจากตัวเลือกแล้ว`); 
+        } else { 
+            alert(`❌ ไม่พบแท็ก "${tagToRemove}" ให้ลบครับ`); 
+        }
     } else {
-        if (!list.includes(action)) { list.push(action); alert(`✅ เพิ่มแท็ก "${action}" เรียบร้อยแล้ว`); } 
-        else { alert(`⚠️ มีแท็ก "${action}" อยู่แล้วครับ`); }
+        // ถ้าพิมพ์ปกติ แปลว่าต้องการเพิ่ม
+        if (!list.includes(action)) { 
+            list.push(action); 
+            alert(`✅ เพิ่มแท็ก "${action}" เรียบร้อยแล้ว`); 
+        } else { 
+            alert(`⚠️ มีแท็ก "${action}" อยู่ในตัวเลือกแล้วครับ`); 
+        }
     }
-    saveData(); // 🌟 เซฟลงไฟล์ในคอม
-    renderTagSelects();
+    
+    inputElem.value = ""; // ล้างช่องพิมพ์เมื่อทำเสร็จ
+    saveData(); // 🌟 เซฟลงไฟล์ JSON ในคอม
+    renderTagSelects(); // อัปเดต Dropdown ทันที
 }
 
 // ==========================================

@@ -140,9 +140,17 @@
                         <label>แท็กทั่วไป</label>
                         <select id="input-tag" style="width:50%; display:inline;">
                             <option value="">-- เลือกแท็ก --</option>
-                            </select>
-                        <button type="button" class="btn btn-secondary" onclick="addTag('normal')">เพิ่ม</button>
-                        <button type="button" class="btn" style="background:#4b5563; padding: 10px 15px;" onclick="editMasterTags('normal')">⚙️ แก้ไข</button>
+                        </select>
+                        <button type="button" class="btn btn-secondary" onclick="addTag('normal')">เพิ่มเข้าเรื่องนี้</button>
+                        
+                        <div style="margin-top:10px; padding-top:10px; border-top:1px solid #4b5563;">
+                            <label style="font-size: 12px; color: #9ca3af;">⚙️ จัดการตัวเลือกแท็ก (พิมพ์ชื่อเพื่อเพิ่ม หรือพิมพ์ - นำหน้าเพื่อลบ)</label>
+                            <div style="display:flex; gap:10px;">
+                                <input type="text" id="manage-tag-normal" placeholder="เช่น Action หรือ -Action">
+                                <button type="button" class="btn" style="background:#4b5563;" onclick="editMasterTags('normal')">อัปเดต</button>
+                            </div>
+                        </div>
+                        
                         <div id="form-tags-list" style="margin-top:10px;"></div>
                     </div>
 
@@ -150,9 +158,17 @@
                         <label style="color:#fca5a5;">⚠️ แท็กเตือน (รุนแรง)</label>
                         <select id="input-warning-tag" style="width:50%; display:inline;">
                             <option value="">-- เลือกคำเตือน --</option>
-                            </select>
-                        <button type="button" class="btn btn-danger" onclick="addTag('warning')">เพิ่ม</button>
-                        <button type="button" class="btn" style="background:#7f1d1d; padding: 10px 15px;" onclick="editMasterTags('warning')">⚙️ แก้ไข</button>
+                        </select>
+                        <button type="button" class="btn btn-danger" onclick="addTag('warning')">เพิ่มเข้าเรื่องนี้</button>
+
+                        <div style="margin-top:10px; padding-top:10px; border-top:1px solid #7f1d1d;">
+                            <label style="font-size: 12px; color: #fca5a5;">⚙️ จัดการตัวเลือกแท็กเตือน (พิมพ์ชื่อเพื่อเพิ่ม หรือพิมพ์ - นำหน้าเพื่อลบ)</label>
+                            <div style="display:flex; gap:10px;">
+                                <input type="text" id="manage-tag-warning" placeholder="เช่น สปอยล์ หรือ -สปอยล์">
+                                <button type="button" class="btn" style="background:#7f1d1d;" onclick="editMasterTags('warning')">อัปเดต</button>
+                            </div>
+                        </div>
+                        
                         <div id="form-warning-tags-list" style="margin-top:10px;"></div>
                     </div>
                     
