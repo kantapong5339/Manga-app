@@ -1,24 +1,26 @@
 // ==========================================
-// 🌟 แก้บั๊ก Electron: อาการค้าง/พิมพ์ไม่ได้หลังปิดป๊อปอัพ (Alert/Confirm)
+// 🌟 แก้บั๊ก Electron: อาการค้าง/พิมพ์ไม่ได้หลังปิดป๊อปอัพ (ครอบคลุม Alert, Confirm, Prompt)
 // ==========================================
 const originalAlert = window.alert;
 window.alert = function(message) {
     originalAlert(message);
-    // สั่งให้แอปดึงโฟกัสคีย์บอร์ดกลับมาทันทีที่ปิดป๊อปอัพ
-    setTimeout(() => {
-        window.focus();
-        if (document.activeElement) document.activeElement.blur();
-    }, 10);
+    // ดึงคีย์บอร์ดกลับมาทันทีเมื่อปิด Alert
+    setTimeout(() => { window.focus(); }, 10);
 };
 
 const originalConfirm = window.confirm;
 window.confirm = function(message) {
     const result = originalConfirm(message);
-    // สั่งให้แอปดึงโฟกัสคีย์บอร์ดกลับมาทันทีที่ปิดป๊อปอัพ
-    setTimeout(() => {
-        window.focus();
-        if (document.activeElement) document.activeElement.blur();
-    }, 10);
+    // ดึงคีย์บอร์ดกลับมาทันทีเมื่อปิด Confirm
+    setTimeout(() => { window.focus(); }, 10);
+    return result;
+};
+
+const originalPrompt = window.prompt;
+window.prompt = function(message, defaultText) {
+    const result = originalPrompt(message, defaultText);
+    // ดึงคีย์บอร์ดกลับมาทันทีเมื่อปิด Prompt
+    setTimeout(() => { window.focus(); }, 10);
     return result;
 };
 // ==========================================
