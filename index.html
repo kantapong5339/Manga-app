@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manga & Media Tracker</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="container" id="dashboard-view">
+        <header>
+            <h1>📚 My Media Tracker</h1>
+            <div style="display:flex; gap:10px;">
+                <button class="btn btn-secondary" onclick="exportBackup()">📥 แบ็คอัพข้อมูล</button>
+                
+                <button class="btn btn-secondary" onclick="document.getElementById('import-file').click()">📤 นำเข้าข้อมูล</button>
+                <input type="file" id="import-file" class="hidden" accept=".json" onchange="importBackup(event)">
+                
+                <button class="btn" onclick="openModal('add')">➕ เพิ่มเรื่องใหม่</button>
+            </div>
+        </header>
+
+        <div class="stats-grid">
+            <div class="stat-card"><div class="stat-title">ทั้งหมด (Total)</div><div class="stat-value">0</div></div>
+            <div class="stat-card pending"><div class="stat-title">ยังไม่จบ (On Going)</div><div class="stat-value">0</div></div>
+            <div class="stat-card completed"><div class="stat-title">จบแล้ว (Completed)</div><div class="stat-value">0</div></div>
+        </div>
+
+        <div class="controls-bar">
+            <div class="filter-group">
+                <select id="filter-type" onchange="renderDashboard()">
+                    <option value="All">ทุกประเภท</option>
+                    <option value="มังงะ">มังงะ</option>
+                    <option value="มังฮวา">มังฮวา</option>
+                    <option value="นิยาย">นิยาย</option>
+                    <option value="อนิเมะ">อนิเมะ</option>
+                </select>
+                <select id="filter-status" onchange="renderDashboard()">
+                    <option value="All">ทุกสถานะ</option>
+                    <option value="ยังไม่จบ">ยังไม่จบ</option>
+                    <option value="จบแล้ว">จบแล้ว</option>
+                </select>
+                <input type="text" id="search-bar" placeholder="🔍 ค้นหาชื่อเรื่อง หรือ แท็ก..." oninput="renderDashboard()" style="min-width: 250px;">
+            </div>
+            <div>
+                <select id="sort-by" onchange="renderDashboard()">
+                    <option value="date-desc">วันที่บันทึก (ใหม่ล่าสุด → เก่าสุด)</option>
+                    <option value="date-asc">วันที่บันทึก (เก่าสุด → ใหม่ล่าสุด)</option>
+                    <option value="rating-desc">คะแนน (มากสุด → น้อยสุด)</option>
+                    <option value="rating-asc">คะแนน (น้อยสุด → มากสุด)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="manga-grid" id="manga-container">
+            <div style="color: #6b7280; text-align: center; grid-column: 1 / -1; padding: 40px;">
+                ยังไม่มีข้อมูลการ์ตูน...
+            </div>
+        </div>
+    </div>
+
+    <div class="container hidden" id="detail-view">
+        <div style="margin-bottom: 20px;">
+            <button class="btn btn-secondary" onclick="backToDashboard()">← กลับหน้าหลัก</button>
+            <button class="btn" id="detail-edit-btn" style="float: right;" onclick="openModal('edit')">✏️ แก้ไขข้อมูล</button>
+        </div>
+
+        <div class="detail-header-banner">
+            <div class="detail-cover" id="detail-cover">No Cover</div>
+            <div class="detail-info">
+                <div class="detail-title" id="detail-title">ชื่อเรื่อง</div>
+                <div class="detail-meta-grid">
+                    <div><div class="meta-label">ประเภท</div><div class="meta-value" id="detail-type">-</div></div>
+                    <div><div class="meta-label">สถานะ</div><div class="meta-value" id="detail-status">-</div></div>
+                    <div><div class="meta-label">วันที่บันทึก</div><div class="meta-value" id="detail-date">-</div></div>
+                    <div><div class="meta-label">คะแนน</div><div class="meta-value" id="detail-rating" style="color:#fbbf24; font-weight:bold;">-</div></div>
+                </div>
+                <div id="detail-link-container" style="margin-top: 10px;"></div>
+            </div>
+        </div>
+
+        <div class="detail-section">
+            <div class="section-title">📝 เรื่องย่อ / รีวิวบันทึก</div>
+            <div class="review-text" id="detail-review"></div>
+        </div>
+
+        <div class="detail-section">
+            <div class="section-title">🏷️ แท็ก (Tags)</div>
+            <div id="detail-tags-list"></div>
+        </div>
+
+        <div class="detail-section" id="detail-warning-section">
+            <div class="section-title" style="color: #fca5a5;">⚠️ ป้ายเตือนเนื้อหา (Warning Tags)</div>
+            <div class="warning-box-grid" id="detail-warning-tags-list"></div>
+        </div>
+
+        <div style="margin-top: 20px; text-align:right;">
+            <button class="btn btn-danger" onclick="deleteManga()">🗑️ ลบเรื่องนี้</button>
+        </div>
+        
+    </div>
+
+    <div class="modal-overlay" id="manga-modal">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h2 id="modal-title">➕ เพิ่มเรื่องใหม่</h2>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="manga-form" onsubmit="saveMangaForm(event)">
+                    <input type="hidden" id="form-id">
+                    
+                    <div class="form-group"><label>ชื่อเรื่อง *</label><input type="text" id="form-title" required></div>
+                    
+                    <div class="form-row">
+                        <div class="form-group"><label>ประเภท</label><select id="form-type"><option value="มังงะ">มังงะ</option><option value="มังฮวา">มังฮวา</option><option value="นิยาย">นิยาย</option><option value="อนิเมะ">อนิเมะ</option></select></div>
+                        <div class="form-group"><label>สถานะ</label><select id="form-status"><option value="ยังไม่จบ">ยังไม่จบ</option><option value="จบแล้ว">จบแล้ว</option></select></div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group"><label>วันที่อ่านจบ / บันทึก</label><input type="date" id="form-date"></div>
+                        <div class="form-group"><label>คะแนน (0-5)</label><input type="number" id="form-rating" step="0.1" min="0" max="5"></div>
+                    </div>
+
+                    <div class="form-group"><label>รูปภาพปก (อัปโหลดจากคอม)</label><input type="file" id="form-cover" accept="image/*" onchange="handleImageUpload(event)"></div>
+                    <div class="form-group"><label>ลิงก์ไปอ่านต่อ (หลัก)</label><input type="text" id="form-link"></div>
+                    
+                    <div class="form-group" style="background:#2d2d35; padding:10px; border-radius:6px; margin-top:-5px;">
+                        <label style="font-size: 13px; color: #9ca3af;">🔗 ลิงก์สำรอง (ถ้ามี)</label>
+                        <div style="display:flex; gap:10px;">
+                            <input type="text" id="input-alt-link" placeholder="วางลิงก์สำรองที่นี่...">
+                            <button type="button" class="btn btn-secondary" onclick="addAltLink()">เพิ่ม</button>
+                        </div>
+                        <div id="form-alt-links-list"></div>
+                    </div>
+                    <div class="form-group"><label>รีวิว / เรื่องย่อ</label><textarea id="form-review" rows="4"></textarea></div>
+                    
+                    <div class="form-group" style="background:#2d2d35; padding:10px; border-radius:6px;">
+                        <label>แท็กทั่วไป</label>
+                        <select id="input-tag" style="width:50%; display:inline;">
+                            <option value="">-- เลือกแท็ก --</option>
+                            </select>
+                        <button type="button" class="btn btn-secondary" onclick="addTag('normal')">เพิ่ม</button>
+                        <button type="button" class="btn" style="background:#4b5563; padding: 10px 15px;" onclick="editMasterTags('normal')">⚙️ แก้ไข</button>
+                        <div id="form-tags-list" style="margin-top:10px;"></div>
+                    </div>
+
+                    <div class="form-group" style="background:#451a1a; padding:10px; border-radius:6px;">
+                        <label style="color:#fca5a5;">⚠️ แท็กเตือน (รุนแรง)</label>
+                        <select id="input-warning-tag" style="width:50%; display:inline;">
+                            <option value="">-- เลือกคำเตือน --</option>
+                            </select>
+                        <button type="button" class="btn btn-danger" onclick="addTag('warning')">เพิ่ม</button>
+                        <button type="button" class="btn" style="background:#7f1d1d; padding: 10px 15px;" onclick="editMasterTags('warning')">⚙️ แก้ไข</button>
+                        <div id="form-warning-tags-list" style="margin-top:10px;"></div>
+                    </div>
+                    
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal()">ยกเลิก</button>
+                        <button type="submit" class="btn">บันทึก</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

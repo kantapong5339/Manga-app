@@ -1,0 +1,377 @@
+const fs = require('fs');
+const path = require('path');
+
+// ==========================================
+// 1. ระบบจัดการไฟล์ในคอมพิวเตอร์ (File System)
+// ==========================================
+// สร้างโฟลเดอร์ data และ images อัตโนมัติถ้ายัังไม่มี
+const dataDir = path.join(__dirname, 'data');
+const imgDir = path.join(dataDir, 'images');
+
+if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir);
+if (!fs.existsSync(imgDir)) fs.mkdirSync(imgDir);
+
+const dataFile = path.join(dataDir, 'mangaData.json'); // ไฟล์ฐานข้อมูลของเรา
+
+// ==========================================
+// 2. ตัวแปรส่วนกลาง
+// ==========================================
+let mangaData = [];
+let defaultTags = ["Action", "Comedy", "Drama", "Fantasy", "Romance", "สืบสวน"];
+let defaultWarningTags = ["เนื้อหารุนแรง", "เลือดสาด", "สปอยล์"];
+let masterTags = [];
+let masterWarningTags = [];
+
+let currentImage = "";
+let currentTags = [];
+let currentWarningTags = [];
+let currentAltLinks = [];
+let currentViewId = null;
+
+// ==========================================
+// 3. ฟังก์ชันอ่าน/เขียนไฟล์ (แทน LocalStorage)
+// ==========================================
+function loadData() {
+    if (fs.existsSync(dataFile)) {
+        // ถ้ามีไฟล์เซฟอยู่แล้ว ให้โหลดจากไฟล์
+        const raw = fs.readFileSync(dataFile, 'utf8');
+        const parsed = JSON.parse(raw);
+        mangaData = parsed.mangaData || [];
+        masterTags = parsed.masterTags || defaultTags;
+        masterWarningTags = parsed.masterWarningTags || defaultWarningTags;
+    } else {
+        // เปิดครั้งแรก ลองดึงข้อมูลเก่าจาก LocalStorage (ถ้ามี) มาใส่ไฟล์
+        mangaData = JSON.parse(localStorage.getItem('manga_data')) || [];
+        masterTags = JSON.parse(localStorage.getItem('master_tags')) || defaultTags;
+        masterWarningTags = JSON.parse(localStorage.getItem('master_warning_tags')) || defaultWarningTags;
+        saveData(); 
+    }
+}
+
+function saveData() {
+    const dataToSave = { mangaData, masterTags, masterWarningTags };
+    // เขียนข้อมูลทั้งหมดลงไฟล์ .json ในคอมพิวเตอร์
+    fs.writeFileSync(dataFile, JSON.stringify(dataToSave, null, 2), 'utf8');
+}
+
+// ฟังก์ชันแปลงชื่อไฟล์ ให้กลายเป็นที่อยู่รูปภาพ
+function getCoverPath(coverName) {
+    if (!coverName) return '';
+    if (coverName.startsWith('data:image')) return coverName; // รองรับรูปเก่าที่เคยเซฟแบบ Base64
+    return `data/images/${coverName}`; // รูปแบบใหม่ ดึงจากโฟลเดอร์ images
+}
+
+window.onload = function() {
+    loadData();
+    renderTagSelects();
+    renderDashboard();
+};
+
+// ==========================================
+// 4. ฟังก์ชันจัดการรูปภาพ (ก๊อปปี้ไฟล์ต้นฉบับ) 🌟
+// ==========================================
+function handleImageUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // ดึงที่อยู่ไฟล์ต้นฉบับจากคอมพิวเตอร์ของคุณ
+    const sourcePath = file.path; 
+    const fileExt = path.extname(sourcePath);
+    const fileName = 'cover_' + Date.now() + fileExt; // ตั้งชื่อไฟล์ใหม่กันซ้ำ
+    const destPath = path.join(imgDir, fileName); // ที่อยู่โฟลเดอร์ปลายทาง
+
+    // ก๊อปปี้ไฟล์ต้นฉบับไปเก็บที่ data/images/
+    fs.copyFileSync(sourcePath, destPath);
+    
+    currentImage = fileName; // จำแค่ชื่อไฟล์พอ
+    alert("โหลดรูปภาพต้นฉบับสำเร็จแล้ว!");
+}
+
+// ==========================================
+// 5. ระบบหน้าต่าง Modal และการบันทึกฟอร์ม
+// ==========================================
+function closeModal() { document.getElementById('manga-modal').classList.remove('active'); }
+
+function openModal(mode) {
+    document.getElementById('manga-modal').classList.add('active');
+    document.getElementById('manga-form').reset();
+    currentImage = ""; currentTags = []; currentWarningTags = []; currentAltLinks = [];
+
+    if (mode === 'edit') {
+        document.getElementById('modal-title').innerText = "✏️ แก้ไขข้อมูล";
+        const item = mangaData.find(m => m.id === currentViewId);
+        if (item) {
+            document.getElementById('form-id').value = item.id;
+            document.getElementById('form-title').value = item.title;
+            document.getElementById('form-type').value = item.type;
+            document.getElementById('form-status').value = item.status;
+            document.getElementById('form-date').value = item.date;
+            document.getElementById('form-rating').value = item.rating;
+            document.getElementById('form-link').value = item.link;
+            document.getElementById('form-review').value = item.review;
+            currentImage = item.cover || "";
+            currentTags = [...(item.tags || [])];
+            currentWarningTags = [...(item.warningTags || [])];
+            currentAltLinks = [...(item.altLinks || [])];
+        }
+    } else {
+        document.getElementById('modal-title').innerText = "➕ เพิ่มเรื่องใหม่";
+        document.getElementById('form-id').value = "";
+    }
+    updateTagsUI();
+    updateAltLinksUI();
+}
+
+function saveMangaForm(e) {
+    e.preventDefault();
+    const id = document.getElementById('form-id').value;
+    const data = {
+        id: id ? parseInt(id) : Date.now(),
+        title: document.getElementById('form-title').value,
+        type: document.getElementById('form-type').value,
+        status: document.getElementById('form-status').value,
+        date: document.getElementById('form-date').value,
+        rating: document.getElementById('form-rating').value,
+        link: document.getElementById('form-link').value,
+        review: document.getElementById('form-review').value,
+        cover: currentImage,
+        tags: [...currentTags],
+        warningTags: [...currentWarningTags],
+        altLinks: [...currentAltLinks]
+    };
+
+    if (id) {
+        const idx = mangaData.findIndex(m => m.id == parseInt(id));
+        mangaData[idx] = data;
+    } else {
+        mangaData.push(data);
+    }
+
+    saveData(); // 🌟 เซฟลงไฟล์ในคอม
+    document.getElementById('manga-form').reset();
+    currentImage = ""; currentTags = []; currentWarningTags = []; currentAltLinks = [];
+    closeModal();
+    renderDashboard(); 
+    if (id && currentViewId === parseInt(id)) renderDetail(currentViewId);
+}
+
+function deleteManga() {
+    if (confirm('ลบเรื่องนี้ถาวร?')) {
+        mangaData = mangaData.filter(m => m.id !== currentViewId);
+        saveData(); // 🌟 เซฟลงไฟล์ในคอม
+        backToDashboard();
+        renderDashboard();
+    }
+}
+
+// ==========================================
+// 6. ระบบแสดงผล (UI Rendering)
+// ==========================================
+function renderDashboard() {
+    const container = document.getElementById('manga-container');
+    container.innerHTML = ''; 
+
+    document.querySelector('.stat-card:nth-child(1) .stat-value').innerText = mangaData.length;
+    document.querySelector('.stat-card:nth-child(2) .stat-value').innerText = mangaData.filter(m => m.status === 'ยังไม่จบ').length;
+    document.querySelector('.stat-card:nth-child(3) .stat-value').innerText = mangaData.filter(m => m.status === 'จบแล้ว').length;
+
+    const typeFilter = document.getElementById('filter-type') ? document.getElementById('filter-type').value : 'All';
+    const statusFilter = document.getElementById('filter-status') ? document.getElementById('filter-status').value : 'All';
+    const searchQuery = document.getElementById('search-bar') ? document.getElementById('search-bar').value.toLowerCase() : '';
+    const sortBy = document.getElementById('sort-by') ? document.getElementById('sort-by').value : 'date-desc';
+
+    let filteredList = mangaData.filter(item => {
+        const matchType = (typeFilter === 'All' || item.type === typeFilter);
+        const matchStatus = (statusFilter === 'All' || item.status === statusFilter);
+        const matchSearch = item.title.toLowerCase().includes(searchQuery) || 
+                            (item.tags && item.tags.some(t => t.toLowerCase().includes(searchQuery))) ||
+                            (item.warningTags && item.warningTags.some(t => t.toLowerCase().includes(searchQuery)));
+        return matchType && matchStatus && matchSearch;
+    });
+
+    filteredList.sort((a, b) => {
+        if (sortBy === 'date-desc') return new Date(b.date || 0) - new Date(a.date || 0);
+        if (sortBy === 'date-asc') return new Date(a.date || 0) - new Date(b.date || 0);
+        if (sortBy === 'rating-desc') return (parseFloat(b.rating) || 0) - (parseFloat(a.rating) || 0);
+        if (sortBy === 'rating-asc') return (parseFloat(a.rating) || 0) - (parseFloat(b.rating) || 0);
+        return 0;
+    });
+
+    if (filteredList.length === 0) {
+        container.innerHTML = `<div style="color: #6b7280; text-align: center; grid-column: 1 / -1; padding: 40px;">ไม่พบข้อมูล...</div>`;
+        return;
+    }
+
+    filteredList.forEach(item => {
+        const badgeClass = item.status === 'จบแล้ว' ? 'badge-completed' : 'badge-ongoing';
+        const coverUrl = getCoverPath(item.cover); // 🌟 ดึงรูปจากฮาร์ดดิสก์
+        const coverStyle = coverUrl ? `style="background-image: url('${coverUrl}')"` : '';
+
+        container.innerHTML += `
+            <div class="manga-card" onclick="renderDetail(${item.id})">
+                <div class="card-cover" ${coverStyle}>
+                    ${!item.cover ? 'No Cover' : ''}
+                    <span class="card-badge ${badgeClass}">${item.status}</span>
+                </div>
+                <div class="card-content">
+                    <div class="card-title">${item.title}</div>
+                    <div class="card-meta">
+                        <span style="background:#374151; padding:2px 6px; border-radius:4px;">${item.type}</span>
+                        <span class="card-rating">⭐ ${item.rating || '0.0'}</span>
+                    </div>
+                </div>
+            </div>`;
+    });
+}
+
+function renderDetail(id) {
+    currentViewId = id; 
+    document.getElementById('dashboard-view').classList.add('hidden');
+    document.getElementById('detail-view').classList.remove('hidden');
+    window.scrollTo(0, 0); 
+
+    const item = mangaData.find(m => m.id === id);
+    if (!item) return;
+
+    document.getElementById('detail-title').innerText = item.title;
+    document.getElementById('detail-type').innerText = item.type;
+    document.getElementById('detail-status').innerText = item.status;
+    document.getElementById('detail-date').innerText = item.date || '-';
+    document.getElementById('detail-rating').innerText = item.rating ? `⭐ ${item.rating}/5.0` : '-';
+    document.getElementById('detail-review').innerText = item.review || 'ยังไม่มีบันทึกรีวิวสำหรับเรื่องนี้';
+    
+    const coverUrl = getCoverPath(item.cover); // 🌟 ดึงรูปจากฮาร์ดดิสก์
+    const coverDiv = document.getElementById('detail-cover');
+    coverDiv.style.backgroundImage = coverUrl ? `url('${coverUrl}')` : 'none';
+    coverDiv.innerText = coverUrl ? '' : 'No Cover';
+
+    const linkContainer = document.getElementById('detail-link-container');
+    let linksHTML = '<div style="display:flex; flex-direction:column; gap:10px; margin-top:5px;">';
+    if (item.link) linksHTML += `<a href="${item.link}" target="_blank" class="btn" style="background-color:#10b981; display:inline-block; text-decoration:none; width:fit-content;">🌐 ลิงก์ไปอ่านต่อ (หลัก)</a>`;
+    if (item.altLinks && item.altLinks.length > 0) {
+        item.altLinks.forEach((altLink, idx) => {
+            linksHTML += `<a href="${altLink}" target="_blank" class="btn btn-secondary" style="font-size: 13px; padding: 6px 12px; width: fit-content; display:inline-block; text-decoration:none;">🔗 ลิงก์สำรอง ${idx + 1}</a>`;
+        });
+    }
+    linksHTML += '</div>';
+    linkContainer.innerHTML = linksHTML;
+
+    const tagsDiv = document.getElementById('detail-tags-list');
+    tagsDiv.innerHTML = item.tags && item.tags.length > 0 ? item.tags.map(t => `<span class="tag-item">#${t}</span>`).join('') : '<span style="color:#6b7280;">ไม่มีแท็ก</span>';
+
+    const warningSec = document.getElementById('detail-warning-section');
+    const warningList = document.getElementById('detail-warning-tags-list');
+    if (item.warningTags && item.warningTags.length > 0) {
+        warningSec.classList.remove('hidden');
+        warningList.innerHTML = item.warningTags.map(t => `<div class="warning-box">⚠️ ป้ายเตือน: ${t}</div>`).join('');
+    } else {
+        warningSec.classList.add('hidden');
+    }
+}
+
+function backToDashboard() {
+    document.getElementById('detail-view').classList.add('hidden');
+    document.getElementById('dashboard-view').classList.remove('hidden');
+}
+
+// ==========================================
+// 7. ระบบจัดการแท็ก (เพิ่ม/ลบ/แก้ไข)
+// ==========================================
+function updateTagsUI() {
+    const normalList = document.getElementById('form-tags-list');
+    if (normalList) normalList.innerHTML = currentTags.map((t, i) => `<span class="tag-item">${t} <span style="cursor:pointer; color:#ef4444; font-weight:bold; margin-left:5px;" onclick="removeTag('normal', ${i})">✖</span></span>`).join('');
+    
+    const warningList = document.getElementById('form-warning-tags-list');
+    if (warningList) warningList.innerHTML = currentWarningTags.map((t, i) => `<span class="tag-item" style="background:#7f1d1d; color:#fca5a5;">${t} <span style="cursor:pointer; color:#ef4444; font-weight:bold; margin-left:5px;" onclick="removeTag('warning', ${i})">✖</span></span>`).join('');
+}
+
+function addTag(type) {
+    const selectBox = document.getElementById(type === 'normal' ? 'input-tag' : 'input-warning-tag');
+    const val = selectBox.value;
+    if (!val) return; 
+    if (type === 'normal' && !currentTags.includes(val)) currentTags.push(val);
+    else if (type === 'warning' && !currentWarningTags.includes(val)) currentWarningTags.push(val);
+    selectBox.value = ""; updateTagsUI();
+}
+
+function removeTag(type, index) {
+    if (type === 'normal') currentTags.splice(index, 1);
+    else currentWarningTags.splice(index, 1);
+    updateTagsUI();
+}
+
+function renderTagSelects() {
+    const tagSelect = document.getElementById('input-tag');
+    if (tagSelect) tagSelect.innerHTML = '<option value="">-- เลือกแท็ก --</option>' + masterTags.map(t => `<option value="${t}">${t}</option>`).join('');
+    const warningSelect = document.getElementById('input-warning-tag');
+    if (warningSelect) warningSelect.innerHTML = '<option value="">-- เลือกคำเตือน --</option>' + masterWarningTags.map(t => `<option value="${t}">${t}</option>`).join('');
+}
+
+function editMasterTags(type) {
+    let list = type === 'normal' ? masterTags : masterWarningTags;
+    let title = type === 'normal' ? 'แท็กทั่วไป' : 'แท็กเตือน';
+    let action = prompt(`⚙️ จัดการรายการตัวเลือก: ${title}\n\nรายการที่มีตอนนี้: ${list.join(', ')}\n\n👉 พิมพ์ชื่อแท็กใหม่เพื่อ "เพิ่ม"\n👉 หรือพิมพ์ใส่เครื่องหมายลบด้านหน้าเพื่อ "ลบ" (เช่น -Action)`);
+    if (!action) return;
+    action = action.trim();
+    if (action.startsWith('-')) {
+        let tagToRemove = action.substring(1).trim();
+        let index = list.indexOf(tagToRemove);
+        if (index > -1) { list.splice(index, 1); alert(`🗑️ ลบแท็ก "${tagToRemove}" ออกแล้ว`); } 
+        else { alert(`❌ ไม่พบแท็ก "${tagToRemove}" ให้ลบครับ`); }
+    } else {
+        if (!list.includes(action)) { list.push(action); alert(`✅ เพิ่มแท็ก "${action}" เรียบร้อยแล้ว`); } 
+        else { alert(`⚠️ มีแท็ก "${action}" อยู่แล้วครับ`); }
+    }
+    saveData(); // 🌟 เซฟลงไฟล์ในคอม
+    renderTagSelects();
+}
+
+// ==========================================
+// 8. ระบบจัดการลิงก์สำรอง
+// ==========================================
+function addAltLink() {
+    const input = document.getElementById('input-alt-link');
+    const val = input.value.trim();
+    if (val && !currentAltLinks.includes(val)) { currentAltLinks.push(val); input.value = ""; updateAltLinksUI(); }
+}
+function removeAltLink(index) { currentAltLinks.splice(index, 1); updateAltLinksUI(); }
+function updateAltLinksUI() {
+    const list = document.getElementById('form-alt-links-list');
+    if (list) list.innerHTML = currentAltLinks.map((link, i) => `<div style="display:flex; justify-content:space-between; align-items:center; background:#374151; padding:6px 10px; border-radius:4px; margin-top:6px; font-size:12px;"><span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:85%;">${link}</span><span style="cursor:pointer; color:#ef4444; font-weight:bold;" onclick="removeAltLink(${i})">✖ ลบ</span></div>`).join('');
+}
+
+// ==========================================
+// 9. ระบบสำรองและนำเข้า (Backup / Restore)
+// ==========================================
+function exportBackup() {
+    const backupData = { mangaData, masterTags, masterWarningTags };
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `manga_tracker_backup_${new Date().toISOString().split('T')[0]}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+}
+
+function importBackup(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const parsedData = JSON.parse(e.target.result);
+            if (parsedData.mangaData !== undefined) {
+                if (confirm(`พบข้อมูล ${parsedData.mangaData.length} เรื่อง\nต้องการเขียนทับข้อมูลเดิมหรือไม่?`)) {
+                    mangaData = parsedData.mangaData;
+                    masterTags = parsedData.masterTags || defaultTags;
+                    masterWarningTags = parsedData.masterWarningTags || defaultWarningTags;
+                    saveData(); // 🌟 เซฟลงไฟล์ในคอมทันที
+                    renderTagSelects(); renderDashboard(); alert('🎉 นำเข้าข้อมูลสำเร็จแล้ว!');
+                }
+            } else alert('❌ รูปแบบไฟล์ JSON ไม่ถูกต้อง');
+        } catch (err) { alert('❌ เกิดข้อผิดพลาดในการอ่านไฟล์'); }
+        event.target.value = '';
+    };
+    reader.readAsText(file);
+}

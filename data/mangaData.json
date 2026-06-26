@@ -1,0 +1,33 @@
+{
+  "mangaData": [
+    {
+      "id": 1782449927415,
+      "title": "Kimi ni naretara",
+      "type": "มังงะ",
+      "status": "ยังไม่จบ",
+      "date": "2026-06-26",
+      "rating": "5",
+      "link": "https://www.nekopost.net/manga/15201",
+      "review": "สลับร่าง\n\n\n",
+      "cover": "",
+      "tags": [
+        "Fantasy"
+      ],
+      "warningTags": [],
+      "altLinks": []
+    }
+  ],
+  "masterTags": [
+    "Action",
+    "Comedy",
+    "Drama",
+    "Fantasy",
+    "Romance",
+    "สืบสวน"
+  ],
+  "masterWarningTags": [
+    "เนื้อหารุนแรง",
+    "เลือดสาด",
+    "สปอยล์"
+  ]
+}
