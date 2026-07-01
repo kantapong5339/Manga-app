@@ -67,6 +67,25 @@
             <button class="btn" style="float: right; margin-right: 10px; background-color: #8b5cf6;" onclick="openChapterModal('add')">➕ เพิ่มรีวิวตอน</button>
         </div>
 
+        <div class="detail-header-banner">
+            <div class="detail-cover" id="detail-cover">No Cover</div>
+            <div class="detail-info">
+                <div class="detail-title" id="detail-title">ชื่อเรื่อง</div>
+                <div class="detail-meta-grid">
+                    <div><div class="meta-label">ประเภท</div><div class="meta-value" id="detail-type">-</div></div>
+                    <div><div class="meta-label">สถานะ</div><div class="meta-value" id="detail-status">-</div></div>
+                    <div><div class="meta-label">วันที่บันทึก</div><div class="meta-value" id="detail-date">-</div></div>
+                    <div><div class="meta-label">คะแนน</div><div class="meta-value" id="detail-rating" style="color:#fbbf24; font-weight:bold;">-</div></div>
+                </div>
+                <div id="detail-link-container" style="margin-top: 10px;"></div>
+            </div>
+        </div>
+
+        <div class="detail-section">
+            <div class="section-title">📝 เรื่องย่อ / รีวิวบันทึก</div>
+            <div class="review-text" id="detail-review"></div>
+        </div>
+
         <div class="detail-section">
             <div class="section-title">🏷️ แท็ก (Tags)</div>
             <div id="detail-tags-list"></div>
@@ -96,6 +115,15 @@
             <div class="modal-body">
                 <form id="manga-form" onsubmit="saveMangaForm(event)">
                     <input type="hidden" id="form-id">
+
+                    <div class="form-group" style="background: #2d2d35; padding: 15px; border-radius: 8px; border: 1px dashed #8b5cf6;">
+                        <label style="color: #c4b5fd;">✨ ระบบดึงข้อมูลอัตโนมัติ (แปะลิงก์เว็บมังงะที่นี่)</label>
+                        <div style="display:flex; gap:10px;">
+                            <input type="text" id="auto-fetch-url" placeholder="วางลิงก์เว็บมังงะ เช่น https://www.nekopost.net/manga/...">
+                            <button type="button" class="btn" style="background-color: #8b5cf6; white-space: nowrap;" onclick="autoFetchData()">ดึงข้อมูล</button>
+                        </div>
+                        <div id="fetch-status" style="font-size: 12px; color: #a78bfa; margin-top: 8px;"></div>
+                    </div>
                     
                     <div class="form-group"><label>ชื่อเรื่อง *</label><input type="text" id="form-title" required></div>
                     

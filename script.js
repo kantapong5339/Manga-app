@@ -152,6 +152,9 @@ function openModal(mode) {
     document.getElementById('manga-form').reset();
     currentImage = ""; currentTags = []; currentWarningTags = []; currentAltLinks = [];
 
+    const statusText = document.getElementById('fetch-status');
+    if (statusText) statusText.innerText = '';
+
     if (mode === 'edit') {
         document.getElementById('modal-title').innerText = "✏️ แก้ไขข้อมูล";
         const item = mangaData.find(m => m.id === currentViewId);
@@ -539,5 +542,90 @@ function deleteChapterReview(index) {
         item.chapterReviews.splice(index, 1); // ลบออก 1 ตัว
         saveData();
         renderDetail(currentViewId);
+    }
+}
+
+// ==========================================
+// 11. ระบบดึงข้อมูลจากเว็บ (Scraping & Auto Download)
+// ==========================================
+async function autoFetchData() {
+    const urlInput = document.getElementById('auto-fetch-url').value.trim();
+    const statusText = document.getElementById('fetch-status');
+    
+    if (!urlInput) {
+        alert('กรุณาวางลิงก์เว็บมังงะก่อนครับ');
+        return;
+    }
+
+    statusText.innerText = "⏳ กำลังดึงข้อมูลและดาวน์โหลดรูปภาพ... กรุณารอสักครู่...";
+    statusText.style.color = "#a78bfa";
+    
+    try {
+        // 1. ดึงข้อมูล HTML จากหน้าเว็บ
+        const response = await fetch(urlInput);
+        const htmlText = await response.text();
+
+        // 2. แปลงข้อความเป็นโค้ด HTML เพื่อให้โปรแกรมค้นหาได้
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(htmlText, 'text/html');
+
+        // 3. ค้นหา "ชื่อเรื่อง" (จากระบบป้ายชื่อเว็บ og:title หรือ <title>)
+        let title = '';
+        const ogTitle = doc.querySelector('meta[property="og:title"]');
+        if (ogTitle) {
+            title = ogTitle.getAttribute('content');
+        } else {
+            const titleTag = doc.querySelector('title');
+            if (titleTag) title = titleTag.innerText;
+        }
+
+        // 4. ค้นหา "รูปปก" (จากระบบป้ายรูปภาพเว็บ og:image)
+        let imageUrl = '';
+        const ogImage = doc.querySelector('meta[property="og:image"]');
+        if (ogImage) {
+            imageUrl = ogImage.getAttribute('content');
+        }
+
+        // 5. นำข้อมูลมาเติมลงในช่องกรอกให้อัตโนมัติ
+        if (title) {
+            // ทำความสะอาดชื่อเรื่อง (ตัดคำห้อยท้าย เช่น " - NekoPost" ทิ้งไป)
+            title = title.split(' - ')[0].split(' | ')[0];
+            document.getElementById('form-title').value = title;
+        }
+        document.getElementById('form-link').value = urlInput;
+
+        // 6. 🌟 ดาวน์โหลดรูปภาพมาเก็บไว้ในเครื่องคอมพิวเตอร์แบบ Offline 🌟
+        if (imageUrl) {
+            // จัดการ URL ที่ไม่มี https: นำหน้า
+            if (imageUrl.startsWith('//')) imageUrl = 'https:' + imageUrl;
+
+            // โหลดไฟล์รูปภาพ
+            const imgResponse = await fetch(imageUrl);
+            const arrayBuffer = await imgResponse.arrayBuffer();
+            const buffer = require('buffer').Buffer.from(arrayBuffer); // แปลงให้ระบบคอมเข้าใจ
+            
+            // สกัดนามสกุลไฟล์ (.jpg, .png) และตั้งชื่อใหม่ป้องกันการซ้ำ
+            let ext = '.jpg';
+            if (imageUrl.toLowerCase().includes('.png')) ext = '.png';
+            if (imageUrl.toLowerCase().includes('.webp')) ext = '.webp';
+            const fileName = 'cover_scraped_' + Date.now() + ext;
+            
+            // บันทึกลงโฟลเดอร์ Documents/MangaTrackerData/images
+            const destPath = path.join(imgDir, fileName);
+            fs.writeFileSync(destPath, buffer);
+            
+            currentImage = fileName; // สั่งให้ระบบจำชื่อรูปล่าสุดนี้ไว้เซฟ
+            
+            statusText.innerText = "✅ ดึงชื่อเรื่องและดาวน์โหลดรูปปกสำเร็จ!";
+            statusText.style.color = "#10b981";
+        } else {
+            statusText.innerText = "✅ ดึงชื่อเรื่องสำเร็จ (แต่หารูปปกอัตโนมัติไม่พบ กรุณาใส่เองนะครับ)";
+            statusText.style.color = "#f59e0b";
+        }
+
+    } catch (error) {
+        console.error("Scraping Error:", error);
+        statusText.innerText = "❌ เกิดข้อผิดพลาด: เว็บไซต์นี้อาจบล็อกการดึงข้อมูล หรือลิงก์ไม่ถูกต้อง";
+        statusText.style.color = "#ef4444";
     }
 }
