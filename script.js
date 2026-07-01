@@ -27,16 +27,19 @@ window.prompt = function(message, defaultText) {
 
 const fs = require('fs');
 const path = require('path');
+const os = require('os'); // 🌟 เพิ่มตัวช่วยหาที่อยู่เครื่องคอมพิวเตอร์
 
 // ==========================================
 // 1. ระบบจัดการไฟล์ในคอมพิวเตอร์ (File System)
 // ==========================================
-// สร้างโฟลเดอร์ data และ images อัตโนมัติถ้ายัังไม่มี
-const dataDir = path.join(__dirname, 'data');
+
+// 🌟 เปลี่ยนเป้าหมาย! สร้างโฟลเดอร์ไว้ที่ Documents/MangaTrackerData ของผู้ใช้
+const dataDir = path.join(os.homedir(), 'Documents', 'MangaTrackerData');
 const imgDir = path.join(dataDir, 'images');
 
-if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir);
-if (!fs.existsSync(imgDir)) fs.mkdirSync(imgDir);
+// สร้างโฟลเดอร์อัตโนมัติถ้ายัังไม่มี
+if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+if (!fs.existsSync(imgDir)) fs.mkdirSync(imgDir, { recursive: true });
 
 const dataFile = path.join(dataDir, 'mangaData.json'); // ไฟล์ฐานข้อมูลของเรา
 
@@ -54,6 +57,7 @@ let currentTags = [];
 let currentWarningTags = [];
 let currentAltLinks = [];
 let currentViewId = null;
+let currentChapterIndex = -1; // ตัวแปรจำว่ากำลังแก้ไขรีวิวตอนที่เท่าไหร่
 
 // ==========================================
 // 3. ฟังก์ชันอ่าน/เขียนไฟล์ (แทน LocalStorage)
@@ -318,6 +322,32 @@ function renderDetail(id) {
     } else {
         warningSec.classList.add('hidden');
     }
+
+    // ===============================
+    // จัดการรีวิวรายตอน (โชว์ข้อมูล)
+    // ===============================
+    const chapterList = document.getElementById('detail-chapter-list');
+    if (!item.chapterReviews) item.chapterReviews = []; // ถ้าไม่เคยมีรีวิว ให้สร้างคลังเปล่าๆ ไว้
+
+    if (item.chapterReviews.length > 0) {
+        chapterList.innerHTML = item.chapterReviews.map((r, i) => `
+            <div class="chapter-review-box">
+                <div class="chapter-review-header">
+                    <div class="chapter-title-text">
+                        ตอนที่ ${r.chapterNo} ${r.title ? ' - ' + r.title : ''}
+                    </div>
+                    <div>
+                        ${r.rating ? `<span class="chapter-rating-text">⭐ ${r.rating}</span>` : ''}
+                        <button class="chapter-action-btn" onclick="openChapterModal('edit', ${i})">✏️ แก้ไข</button>
+                        <button class="chapter-action-btn" style="color:#ef4444;" onclick="deleteChapterReview(${i})">🗑️ ลบ</button>
+                    </div>
+                </div>
+                <div class="chapter-comment-text">${r.comment}</div>
+            </div>
+        `).join('');
+    } else {
+        chapterList.innerHTML = '<div style="color:#6b7280; font-size:14px; text-align:center; padding:10px;">ยังไม่มีรีวิวรายตอน คุณสามารถกดปุ่ม "เพิ่มรีวิวตอน" ด้านบนได้เลย!</div>';
+    }
 }
 
 function backToDashboard() {
@@ -445,4 +475,69 @@ function importBackup(event) {
         event.target.value = '';
     };
     reader.readAsText(file);
+}
+
+// ==========================================
+// 10. ระบบจัดการรีวิวรายตอน (Chapter Reviews)
+// ==========================================
+
+function openChapterModal(mode, index = -1) {
+    document.getElementById('chapter-modal').classList.add('active');
+    document.getElementById('chapter-form').reset();
+    currentChapterIndex = index;
+
+    if (mode === 'edit' && index >= 0) {
+        document.getElementById('chapter-modal-title').innerText = "✏️ แก้ไขรีวิวตอน";
+        const item = mangaData.find(m => m.id === currentViewId);
+        const review = item.chapterReviews[index];
+        
+        document.getElementById('form-chapter-no').value = review.chapterNo;
+        document.getElementById('form-chapter-rating').value = review.rating || '';
+        document.getElementById('form-chapter-title').value = review.title || '';
+        document.getElementById('form-chapter-review').value = review.comment || '';
+    } else {
+        document.getElementById('chapter-modal-title').innerText = "➕ เพิ่มรีวิวตอน";
+    }
+}
+
+function closeChapterModal() {
+    document.getElementById('chapter-modal').classList.remove('active');
+}
+
+function saveChapterReview(e) {
+    e.preventDefault();
+    const item = mangaData.find(m => m.id === currentViewId);
+    if (!item) return;
+    if (!item.chapterReviews) item.chapterReviews = [];
+
+    const newReview = {
+        chapterNo: parseFloat(document.getElementById('form-chapter-no').value), // ให้ใส่จุดทศนิยมได้ เช่น ตอน 10.5
+        rating: document.getElementById('form-chapter-rating').value,
+        title: document.getElementById('form-chapter-title').value,
+        comment: document.getElementById('form-chapter-review').value
+    };
+
+    if (currentChapterIndex >= 0) {
+        // กรณีแก้ไข
+        item.chapterReviews[currentChapterIndex] = newReview;
+    } else {
+        // กรณีเพิ่มใหม่
+        item.chapterReviews.push(newReview);
+    }
+
+    // 🌟 พระเอกอยู่ตรงนี้: สั่งให้บังคับเรียงลำดับจากตอนมาก -> ไปน้อย ทันที!
+    item.chapterReviews.sort((a, b) => b.chapterNo - a.chapterNo);
+
+    saveData(); // เซฟลงไฟล์ในคอม
+    closeChapterModal();
+    renderDetail(currentViewId); // รีเฟรชหน้ารายละเอียดเพื่อโชว์ของใหม่
+}
+
+function deleteChapterReview(index) {
+    if(confirm("คุณแน่ใจหรือไม่ว่าต้องการลบรีวิวตอนนี้?")) {
+        const item = mangaData.find(m => m.id === currentViewId);
+        item.chapterReviews.splice(index, 1); // ลบออก 1 ตัว
+        saveData();
+        renderDetail(currentViewId);
+    }
 }

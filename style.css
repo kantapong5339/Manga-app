@@ -157,3 +157,53 @@ select, input[type="text"], input[type="date"], input[type="number"], textarea {
 select:focus, input:focus, textarea:focus { 
     border-color: #3b82f6; 
 }
+
+/* ========================================== */
+/* ตกแต่งกล่องรีวิวรายตอน (Chapter Reviews) */
+/* ========================================== */
+.chapter-review-box {
+    background-color: #2d2d35;
+    border-left: 4px solid #8b5cf6;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+}
+.chapter-review-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+.chapter-title-text {
+    font-size: 16px;
+    font-weight: bold;
+    color: #fff;
+}
+.chapter-rating-text {
+    color: #fbbf24;
+    font-weight: bold;
+    background: #452b11;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 14px;
+}
+.chapter-comment-text {
+    font-size: 14px;
+    color: #cbd5e1;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    background: #1e1e24;
+    padding: 10px;
+    border-radius: 6px;
+}
+.chapter-action-btn {
+    background: none;
+    border: none;
+    color: #9ca3af;
+    cursor: pointer;
+    font-size: 13px;
+    margin-left: 8px;
+}
+.chapter-action-btn:hover { color: #fff; }

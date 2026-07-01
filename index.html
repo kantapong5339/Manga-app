@@ -64,25 +64,7 @@
         <div style="margin-bottom: 20px;">
             <button class="btn btn-secondary" onclick="backToDashboard()">← กลับหน้าหลัก</button>
             <button class="btn" id="detail-edit-btn" style="float: right;" onclick="openModal('edit')">✏️ แก้ไขข้อมูล</button>
-        </div>
-
-        <div class="detail-header-banner">
-            <div class="detail-cover" id="detail-cover">No Cover</div>
-            <div class="detail-info">
-                <div class="detail-title" id="detail-title">ชื่อเรื่อง</div>
-                <div class="detail-meta-grid">
-                    <div><div class="meta-label">ประเภท</div><div class="meta-value" id="detail-type">-</div></div>
-                    <div><div class="meta-label">สถานะ</div><div class="meta-value" id="detail-status">-</div></div>
-                    <div><div class="meta-label">วันที่บันทึก</div><div class="meta-value" id="detail-date">-</div></div>
-                    <div><div class="meta-label">คะแนน</div><div class="meta-value" id="detail-rating" style="color:#fbbf24; font-weight:bold;">-</div></div>
-                </div>
-                <div id="detail-link-container" style="margin-top: 10px;"></div>
-            </div>
-        </div>
-
-        <div class="detail-section">
-            <div class="section-title">📝 เรื่องย่อ / รีวิวบันทึก</div>
-            <div class="review-text" id="detail-review"></div>
+            <button class="btn" style="float: right; margin-right: 10px; background-color: #8b5cf6;" onclick="openChapterModal('add')">➕ เพิ่มรีวิวตอน</button>
         </div>
 
         <div class="detail-section">
@@ -95,10 +77,14 @@
             <div class="warning-box-grid" id="detail-warning-tags-list"></div>
         </div>
 
+        <div class="detail-section">
+            <div class="section-title">⭐ รีวิวรายตอน (เรียงจากล่าสุด)</div>
+            <div id="detail-chapter-list"></div>
+        </div>
+
         <div style="margin-top: 20px; text-align:right;">
             <button class="btn btn-danger" onclick="deleteManga()">🗑️ ลบเรื่องนี้</button>
         </div>
-        
     </div>
 
     <div class="modal-overlay" id="manga-modal">
@@ -181,6 +167,30 @@
         </div>
     </div>
 
+    <div class="modal-overlay" id="chapter-modal">
+        <div class="modal-container" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2 id="chapter-modal-title">➕ เพิ่มรีวิวตอน</h2>
+                <button class="modal-close" onclick="closeChapterModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="chapter-form" onsubmit="saveChapterReview(event)">
+                    <div class="form-row">
+                        <div class="form-group"><label>ตอนที่ * (ใส่เป็นตัวเลข)</label><input type="number" id="form-chapter-no" step="0.01" required></div>
+                        <div class="form-group"><label>คะแนน (0-5)</label><input type="number" id="form-chapter-rating" step="0.1" min="0" max="5"></div>
+                    </div>
+                    <div class="form-group"><label>ชื่อตอน (ถ้ามี)</label><input type="text" id="form-chapter-title" placeholder="เช่น จุดเริ่มต้นของการแก้แค้น"></div>
+                    <div class="form-group"><label>คอมเม้นต์ / รีวิว *</label><textarea id="form-chapter-review" rows="4" required placeholder="รู้สึกยังไงกับตอนนี้ พิมพ์เลย!"></textarea></div>
+                    
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" onclick="closeChapterModal()">ยกเลิก</button>
+                        <button type="submit" class="btn" style="background-color: #8b5cf6;">บันทึกรีวิว</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
     <script src="script.js"></script>
 </body>
 </html>
