@@ -546,7 +546,7 @@ function deleteChapterReview(index) {
 }
 
 // ==========================================
-// 11. ระบบดึงข้อมูลจากเว็บ (Scraping & Auto Download)
+// 11. ระบบดึงข้อมูลจากเว็บ (Scraping) - สายเจาะระบบ API (Nekopost & ทั่วไป)
 // ==========================================
 async function autoFetchData() {
     const urlInput = document.getElementById('auto-fetch-url').value.trim();
@@ -556,76 +556,128 @@ async function autoFetchData() {
         alert('กรุณาวางลิงก์เว็บมังงะก่อนครับ');
         return;
     }
+    if (!urlInput.startsWith('http')) {
+        alert('กรุณาใส่ลิงก์ที่ขึ้นต้นด้วย http:// หรือ https:// ครับ');
+        return;
+    }
 
-    statusText.innerText = "⏳ กำลังดึงข้อมูลและดาวน์โหลดรูปภาพ... กรุณารอสักครู่...";
+    statusText.innerText = "⏳ กำลังเจาะระบบและดึงข้อมูล... กรุณารอสักครู่...";
     statusText.style.color = "#a78bfa";
     
     try {
-        // 1. ดึงข้อมูล HTML จากหน้าเว็บ
-        const response = await fetch(urlInput);
-        const htmlText = await response.text();
+        const fetchOptions = {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
+        };
 
-        // 2. แปลงข้อความเป็นโค้ด HTML เพื่อให้โปรแกรมค้นหาได้
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(htmlText, 'text/html');
-
-        // 3. ค้นหา "ชื่อเรื่อง" (จากระบบป้ายชื่อเว็บ og:title หรือ <title>)
         let title = '';
-        const ogTitle = doc.querySelector('meta[property="og:title"]');
-        if (ogTitle) {
-            title = ogTitle.getAttribute('content');
-        } else {
-            const titleTag = doc.querySelector('title');
-            if (titleTag) title = titleTag.innerText;
-        }
-
-        // 4. ค้นหา "รูปปก" (จากระบบป้ายรูปภาพเว็บ og:image)
         let imageUrl = '';
-        const ogImage = doc.querySelector('meta[property="og:image"]');
-        if (ogImage) {
-            imageUrl = ogImage.getAttribute('content');
+
+        // 🌟 1. สูตรลับเจาะเกราะ Nekopost (ดึงจาก API หลังบ้านโดยตรง)
+        if (urlInput.includes('nekopost.net')) {
+            // ดึง ID ออกมาจากลิงก์ เช่น /manga/15201 จะได้ 15201
+            const idMatch = urlInput.match(/\/(manga|comic|novel)\/(\d+)/);
+            if (idMatch && idMatch[2]) {
+                const projectId = idMatch[2];
+                try {
+                    // แอบยิงไปที่ API หลังบ้านของเว็บเพื่อเอาชื่อเรื่อง
+                    const apiRes = await fetch(`https://api.osemocphoto.com/frontAPI/getProjectInfo/${projectId}`);
+                    if (apiRes.ok) {
+                        const data = await apiRes.json();
+                        if (data && data.projectInfo && data.projectInfo.projectName) {
+                            title = data.projectInfo.projectName;
+                        }
+                    }
+                } catch (e) { console.log('API Fetch Error'); }
+                
+                // รูปแบบลิงก์รูปภาพหน้าปกที่แน่นอนของ Nekopost
+                imageUrl = `https://www.osemocphoto.com/collectManga/${projectId}/${projectId}_cover.jpg`;
+            }
         }
 
-        // 5. นำข้อมูลมาเติมลงในช่องกรอกให้อัตโนมัติ
+        // 🌟 2. ถ้าไม่ใช่ Nekopost หรือหาชื่อไม่เจอ ให้ดึงแบบเว็บทั่วไป (ค้นหาแบบดิบๆ)
+        if (!title || !imageUrl) {
+            const response = await fetch(urlInput, fetchOptions);
+            const htmlText = await response.text();
+            
+            // สกัดชื่อเรื่อง
+            const titleMatch = htmlText.match(/<title>(.*?)<\/title>/i);
+            const ogTitleMatch = htmlText.match(/property="og:title"\s+content="(.*?)"/i);
+            if (ogTitleMatch && ogTitleMatch[1]) title = ogTitleMatch[1].trim();
+            else if (titleMatch && titleMatch[1]) title = titleMatch[1].trim();
+
+            // สกัดรูปปก
+            const ogImageMatch = htmlText.match(/property="og:image"\s+content="(.*?)"/i);
+            if (ogImageMatch && ogImageMatch[1]) imageUrl = ogImageMatch[1];
+        }
+
+        // 🌟 3. เติมข้อมูลลงช่องในฟอร์ม
         if (title) {
-            // ทำความสะอาดชื่อเรื่อง (ตัดคำห้อยท้าย เช่น " - NekoPost" ทิ้งไป)
-            title = title.split(' - ')[0].split(' | ')[0];
+            // ตัดคำต่อท้ายรุงรังออก
+            title = title.split(' - ')[0].split(' | ')[0]; 
             document.getElementById('form-title').value = title;
+        } else {
+            // ถ้าไม่ได้ชื่อเรื่องมา ให้เคลียร์ช่องเป็นค่าว่างไว้
+            document.getElementById('form-title').value = ""; 
         }
         document.getElementById('form-link').value = urlInput;
 
-        // 6. 🌟 ดาวน์โหลดรูปภาพมาเก็บไว้ในเครื่องคอมพิวเตอร์แบบ Offline 🌟
+        // 🌟 4. ดาวน์โหลดรูปลงเครื่องของคุณ
         if (imageUrl) {
-            // จัดการ URL ที่ไม่มี https: นำหน้า
             if (imageUrl.startsWith('//')) imageUrl = 'https:' + imageUrl;
 
-            // โหลดไฟล์รูปภาพ
-            const imgResponse = await fetch(imageUrl);
-            const arrayBuffer = await imgResponse.arrayBuffer();
-            const buffer = require('buffer').Buffer.from(arrayBuffer); // แปลงให้ระบบคอมเข้าใจ
+            let imgResponse = await fetch(imageUrl, fetchOptions);
             
-            // สกัดนามสกุลไฟล์ (.jpg, .png) และตั้งชื่อใหม่ป้องกันการซ้ำ
-            let ext = '.jpg';
-            if (imageUrl.toLowerCase().includes('.png')) ext = '.png';
-            if (imageUrl.toLowerCase().includes('.webp')) ext = '.webp';
-            const fileName = 'cover_scraped_' + Date.now() + ext;
-            
-            // บันทึกลงโฟลเดอร์ Documents/MangaTrackerData/images
-            const destPath = path.join(imgDir, fileName);
-            fs.writeFileSync(destPath, buffer);
-            
-            currentImage = fileName; // สั่งให้ระบบจำชื่อรูปล่าสุดนี้ไว้เซฟ
-            
-            statusText.innerText = "✅ ดึงชื่อเรื่องและดาวน์โหลดรูปปกสำเร็จ!";
-            statusText.style.color = "#10b981";
+            // ทริคพิเศษ: ถ้ารูป .jpg ไม่มี ให้ลองโหลดแบบ .png
+            if (!imgResponse.ok && urlInput.includes('nekopost.net')) {
+                imageUrl = imageUrl.replace('.jpg', '.png');
+                imgResponse = await fetch(imageUrl, fetchOptions);
+            }
+
+            if (imgResponse.ok) {
+                const arrayBuffer = await imgResponse.arrayBuffer();
+                const buffer = require('buffer').Buffer.from(arrayBuffer); 
+                
+                let ext = '.jpg';
+                if (imageUrl.toLowerCase().includes('.png')) ext = '.png';
+                if (imageUrl.toLowerCase().includes('.webp')) ext = '.webp';
+                const fileName = 'cover_scraped_' + Date.now() + ext;
+                
+                const destPath = path.join(imgDir, fileName);
+                fs.writeFileSync(destPath, buffer); 
+                currentImage = fileName; 
+                
+                // 👇 [อัปเกรดตรงนี้] เช็คว่าได้ชื่อเรื่องมาด้วยไหม
+                if (title) {
+                    statusText.innerText = "✅ ดึงชื่อเรื่องและดาวน์โหลดรูปปกสำเร็จ 100%!";
+                    statusText.style.color = "#10b981"; // สีเขียว
+                } else {
+                    statusText.innerText = "✅ โหลดรูปปกสำเร็จ! (แต่ดึงชื่อเรื่องไม่ได้ รบกวนพิมพ์ชื่อเรื่องเองนะครับ)";
+                    statusText.style.color = "#f59e0b"; // สีส้ม
+                }
+
+            } else {
+                throw new Error("หาไฟล์รูปภาพบนเซิร์ฟเวอร์ไม่พบ");
+            }
         } else {
-            statusText.innerText = "✅ ดึงชื่อเรื่องสำเร็จ (แต่หารูปปกอัตโนมัติไม่พบ กรุณาใส่เองนะครับ)";
-            statusText.style.color = "#f59e0b";
+            if (title) {
+                statusText.innerText = "✅ ดึงชื่อเรื่องสำเร็จ (แต่หารูปปกไม่พบครับ)";
+                statusText.style.color = "#f59e0b";
+            } else {
+                statusText.innerText = "❌ ไม่สามารถดึงข้อมูลได้เลย (เว็บอาจจะป้องกันไว้)";
+                statusText.style.color = "#ef4444";
+            }
         }
 
     } catch (error) {
         console.error("Scraping Error:", error);
-        statusText.innerText = "❌ เกิดข้อผิดพลาด: เว็บไซต์นี้อาจบล็อกการดึงข้อมูล หรือลิงก์ไม่ถูกต้อง";
-        statusText.style.color = "#ef4444";
+        if (document.getElementById('form-title').value !== "") {
+            statusText.innerText = "✅ ดึงชื่อเรื่องสำเร็จ (แต่รูปปกโดนบล็อกการดาวน์โหลดครับ)";
+            statusText.style.color = "#f59e0b";
+        } else {
+            statusText.innerText = "❌ เกิดข้อผิดพลาดในการโหลดข้อมูล (ลิงก์อาจไม่ถูกต้อง)";
+            statusText.style.color = "#ef4444";
+        }
     }
 }

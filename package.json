@@ -1,15 +1,26 @@
 {
   "name": "mangatrackerapp",
   "version": "1.0.0",
-  "description": "",
+  "description": "My Media Tracker",
   "main": "main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "build": "electron-builder"
   },
-  "keywords": [],
+  "build": {
+    "appId": "com.my.mangatracker",
+    "productName": "My Media Tracker",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "portable"
+    }
+  },
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "electron": "^..."
+    "electron": "^42.5.0",
+    "electron-builder": "^24.13.3"
   }
 }
