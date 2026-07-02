@@ -51,6 +51,7 @@ let defaultTags = ["Action", "Comedy", "Drama", "Fantasy", "Romance", "สืบ
 let defaultWarningTags = ["เนื้อหารุนแรง", "เลือดสาด", "สปอยล์"];
 let masterTags = [];
 let masterWarningTags = [];
+let activeQuickTag = "All"; // จดจำว่าตอนนี้ผู้ใช้กดปุ่มแท็กไหนอยู่
 
 let currentImage = "";
 let currentTags = [];
@@ -98,6 +99,7 @@ function getCoverPath(coverName) {
 window.onload = function() {
     loadData();
     renderTagSelects();
+    renderQuickTags(); // 🌟 วาดปุ่มแท็กด่วนตอนเปิดแอป
     renderDashboard();
 };
 
@@ -239,12 +241,15 @@ function renderDashboard() {
     const sortBy = document.getElementById('sort-by') ? document.getElementById('sort-by').value : 'date-desc';
 
     let filteredList = mangaData.filter(item => {
-        const matchType = (typeFilter === 'All' || item.type === typeFilter);
         const matchStatus = (statusFilter === 'All' || item.status === statusFilter);
         const matchSearch = item.title.toLowerCase().includes(searchQuery) || 
                             (item.tags && item.tags.some(t => t.toLowerCase().includes(searchQuery))) ||
                             (item.warningTags && item.warningTags.some(t => t.toLowerCase().includes(searchQuery)));
-        return matchType && matchStatus && matchSearch;
+        
+        // 🌟 เพิ่มการกรองจากปุ่มแท็กด่วน
+        const matchQuickTag = (activeQuickTag === 'All' || (item.tags && item.tags.includes(activeQuickTag)));
+
+        return matchStatus && matchSearch && matchQuickTag;
     });
 
     filteredList.sort((a, b) => {
@@ -546,22 +551,18 @@ function deleteChapterReview(index) {
 }
 
 // ==========================================
-// 11. ระบบดึงข้อมูลจากเว็บ (Scraping) - สายเจาะระบบ API (Nekopost & ทั่วไป)
+// 11. ระบบดึงข้อมูลจากเว็บ (Scraping) - อัปเกรดสุ่มหา API
 // ==========================================
 async function autoFetchData() {
     const urlInput = document.getElementById('auto-fetch-url').value.trim();
     const statusText = document.getElementById('fetch-status');
     
-    if (!urlInput) {
-        alert('กรุณาวางลิงก์เว็บมังงะก่อนครับ');
-        return;
-    }
-    if (!urlInput.startsWith('http')) {
-        alert('กรุณาใส่ลิงก์ที่ขึ้นต้นด้วย http:// หรือ https:// ครับ');
+    if (!urlInput || !urlInput.startsWith('http')) {
+        alert('กรุณาวางลิงก์เว็บมังงะที่ถูกต้อง (ขึ้นต้นด้วย http:// หรือ https://) ครับ');
         return;
     }
 
-    statusText.innerText = "⏳ กำลังเจาะระบบและดึงข้อมูล... กรุณารอสักครู่...";
+    statusText.innerText = "⏳ กำลังเจาะระบบและค้นหาข้อมูล... กรุณารอสักครู่...";
     statusText.style.color = "#a78bfa";
     
     try {
@@ -574,62 +575,78 @@ async function autoFetchData() {
         let title = '';
         let imageUrl = '';
 
-        // 🌟 1. สูตรลับเจาะเกราะ Nekopost (ดึงจาก API หลังบ้านโดยตรง)
+        // 🌟 1. สูตรเจาะเกราะ Nekopost (สุ่มยิง API หลายรูปแบบ)
         if (urlInput.includes('nekopost.net')) {
-            // ดึง ID ออกมาจากลิงก์ เช่น /manga/15201 จะได้ 15201
             const idMatch = urlInput.match(/\/(manga|comic|novel)\/(\d+)/);
             if (idMatch && idMatch[2]) {
                 const projectId = idMatch[2];
-                try {
-                    // แอบยิงไปที่ API หลังบ้านของเว็บเพื่อเอาชื่อเรื่อง
-                    const apiRes = await fetch(`https://api.osemocphoto.com/frontAPI/getProjectInfo/${projectId}`);
-                    if (apiRes.ok) {
-                        const data = await apiRes.json();
-                        if (data && data.projectInfo && data.projectInfo.projectName) {
-                            title = data.projectInfo.projectName;
-                        }
-                    }
-                } catch (e) { console.log('API Fetch Error'); }
                 
-                // รูปแบบลิงก์รูปภาพหน้าปกที่แน่นอนของ Nekopost
+                // ลิสต์ API หลังบ้านที่เว็บอาจจะเปลี่ยนไปใช้งาน
+                const apiUrlsToTry = [
+                    `https://www.nekopost.net/api/project/info/${projectId}`,
+                    `https://www.nekopost.net/api/project/${projectId}`,
+                    `https://api.osemocphoto.com/frontAPI/getProjectInfo/${projectId}`,
+                    `https://api.nekopost.net/frontAPI/getProjectInfo/${projectId}`
+                ];
+
+                for (let apiUrl of apiUrlsToTry) {
+                    if (title) break; // ถ้าได้ชื่อแล้วให้หยุดหาทันที
+                    try {
+                        const apiRes = await fetch(apiUrl, fetchOptions);
+                        if (apiRes.ok) {
+                            const data = await apiRes.json();
+                            // ดึงชื่อเรื่องจากโครงสร้าง JSON
+                            if (data?.projectInfo?.projectName) title = data.projectInfo.projectName;
+                            else if (data?.projectName) title = data.projectName;
+                            else if (data?.title) title = data.title;
+                        }
+                    } catch (e) { /* ข้ามไปลองลิงก์ API ถัดไป */ }
+                }
+
+                // เดา URL ของรูปภาพปก
                 imageUrl = `https://www.osemocphoto.com/collectManga/${projectId}/${projectId}_cover.jpg`;
             }
         }
 
-        // 🌟 2. ถ้าไม่ใช่ Nekopost หรือหาชื่อไม่เจอ ให้ดึงแบบเว็บทั่วไป (ค้นหาแบบดิบๆ)
+        // 🌟 2. ถ้ายังไม่ได้ชื่อเรื่อง ให้ดึงจาก HTML ดิบ (เผื่อเว็บอื่น)
         if (!title || !imageUrl) {
             const response = await fetch(urlInput, fetchOptions);
             const htmlText = await response.text();
             
-            // สกัดชื่อเรื่อง
-            const titleMatch = htmlText.match(/<title>(.*?)<\/title>/i);
-            const ogTitleMatch = htmlText.match(/property="og:title"\s+content="(.*?)"/i);
-            if (ogTitleMatch && ogTitleMatch[1]) title = ogTitleMatch[1].trim();
-            else if (titleMatch && titleMatch[1]) title = titleMatch[1].trim();
+            if (!title) {
+                const titleMatch = htmlText.match(/<title>(.*?)<\/title>/i);
+                const ogTitleMatch = htmlText.match(/property="og:title"\s+content="(.*?)"/i);
+                // ทริคเจาะข้อมูลที่ฝังมากับ SvelteKit
+                const svelteTitleMatch = htmlText.match(/"projectName":"(.*?)"/i); 
+                
+                if (ogTitleMatch && ogTitleMatch[1]) title = ogTitleMatch[1].trim();
+                else if (svelteTitleMatch && svelteTitleMatch[1]) title = svelteTitleMatch[1].trim();
+                else if (titleMatch && titleMatch[1]) title = titleMatch[1].trim();
+            }
 
-            // สกัดรูปปก
-            const ogImageMatch = htmlText.match(/property="og:image"\s+content="(.*?)"/i);
-            if (ogImageMatch && ogImageMatch[1]) imageUrl = ogImageMatch[1];
+            if (!imageUrl) {
+                const ogImageMatch = htmlText.match(/property="og:image"\s+content="(.*?)"/i);
+                if (ogImageMatch && ogImageMatch[1]) imageUrl = ogImageMatch[1];
+            }
         }
 
-        // 🌟 3. เติมข้อมูลลงช่องในฟอร์ม
+        // 🌟 3. เติมข้อมูลลงฟอร์ม
         if (title) {
-            // ตัดคำต่อท้ายรุงรังออก
+            // ทำความสะอาดชื่อเรื่อง (ตัดคำรุงรังออก)
             title = title.split(' - ')[0].split(' | ')[0]; 
             document.getElementById('form-title').value = title;
         } else {
-            // ถ้าไม่ได้ชื่อเรื่องมา ให้เคลียร์ช่องเป็นค่าว่างไว้
-            document.getElementById('form-title').value = ""; 
+            document.getElementById('form-title').value = ""; // เคลียร์ช่องให้ว่าง
         }
         document.getElementById('form-link').value = urlInput;
 
-        // 🌟 4. ดาวน์โหลดรูปลงเครื่องของคุณ
+        // 🌟 4. ดาวน์โหลดรูปลงเครื่องและแจ้งเตือน
         if (imageUrl) {
             if (imageUrl.startsWith('//')) imageUrl = 'https:' + imageUrl;
 
             let imgResponse = await fetch(imageUrl, fetchOptions);
             
-            // ทริคพิเศษ: ถ้ารูป .jpg ไม่มี ให้ลองโหลดแบบ .png
+            // ถ้ารูป .jpg โหลดไม่ได้ (มังงะบางเรื่องใช้ .png) ให้ลองใหม่
             if (!imgResponse.ok && urlInput.includes('nekopost.net')) {
                 imageUrl = imageUrl.replace('.jpg', '.png');
                 imgResponse = await fetch(imageUrl, fetchOptions);
@@ -648,17 +665,16 @@ async function autoFetchData() {
                 fs.writeFileSync(destPath, buffer); 
                 currentImage = fileName; 
                 
-                // 👇 [อัปเกรดตรงนี้] เช็คว่าได้ชื่อเรื่องมาด้วยไหม
+                // 👇 เช็คความถูกต้องของการดึงข้อมูล
                 if (title) {
                     statusText.innerText = "✅ ดึงชื่อเรื่องและดาวน์โหลดรูปปกสำเร็จ 100%!";
-                    statusText.style.color = "#10b981"; // สีเขียว
+                    statusText.style.color = "#10b981";
                 } else {
-                    statusText.innerText = "✅ โหลดรูปปกสำเร็จ! (แต่ดึงชื่อเรื่องไม่ได้ รบกวนพิมพ์ชื่อเรื่องเองนะครับ)";
-                    statusText.style.color = "#f59e0b"; // สีส้ม
+                    statusText.innerText = "✅ โหลดรูปปกสำเร็จ! (แต่ระบบหาชื่อเรื่องไม่เจอ รบกวนพิมพ์ชื่อเรื่องเองนะครับ)";
+                    statusText.style.color = "#f59e0b";
                 }
-
             } else {
-                throw new Error("หาไฟล์รูปภาพบนเซิร์ฟเวอร์ไม่พบ");
+                throw new Error("ดาวน์โหลดรูปไม่ได้");
             }
         } else {
             if (title) {
@@ -676,8 +692,33 @@ async function autoFetchData() {
             statusText.innerText = "✅ ดึงชื่อเรื่องสำเร็จ (แต่รูปปกโดนบล็อกการดาวน์โหลดครับ)";
             statusText.style.color = "#f59e0b";
         } else {
-            statusText.innerText = "❌ เกิดข้อผิดพลาดในการโหลดข้อมูล (ลิงก์อาจไม่ถูกต้อง)";
+            statusText.innerText = "❌ เกิดข้อผิดพลาดในการโหลดข้อมูล (ลิงก์อาจไม่ถูกต้อง หรือเว็บป้องกัน)";
             statusText.style.color = "#ef4444";
         }
     }
+}
+
+// ==========================================
+// 12. ระบบแสดงผลปุ่มแท็กด่วน (Quick Tags)
+// ==========================================
+function renderQuickTags() {
+    const container = document.getElementById('quick-tags-container');
+    if (!container) return;
+
+    // สร้างปุ่ม "ทั้งหมด"
+    let html = `<button class="quick-tag-btn ${activeQuickTag === 'All' ? 'active' : ''}" onclick="setQuickTag('All')">🌟 ทั้งหมด</button>`;
+    
+    // ดึงรายชื่อแท็กที่มีในระบบมาสร้างปุ่ม (จำกัดให้โชว์แค่ 8 อันแรก เพื่อไม่ให้รกเกินไป)
+    const tagsToShow = masterTags.slice(0, 8);
+    tagsToShow.forEach(tag => {
+        html += `<button class="quick-tag-btn ${activeQuickTag === tag ? 'active' : ''}" onclick="setQuickTag('${tag}')">${tag}</button>`;
+    });
+
+    container.innerHTML = html;
+}
+
+function setQuickTag(tag) {
+    activeQuickTag = tag;
+    renderQuickTags(); // อัปเดตสีปุ่ม
+    renderDashboard(); // อัปเดตหน้าจอการ์ด
 }

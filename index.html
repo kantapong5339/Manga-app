@@ -27,31 +27,29 @@
             <div class="stat-card completed"><div class="stat-title">จบแล้ว (Completed)</div><div class="stat-value">0</div></div>
         </div>
 
-        <div class="controls-bar">
-            <div class="filter-group">
-                <select id="filter-type" onchange="renderDashboard()">
-                    <option value="All">ทุกประเภท</option>
-                    <option value="มังงะ">มังงะ</option>
-                    <option value="มังฮวา">มังฮวา</option>
-                    <option value="นิยาย">นิยาย</option>
-                    <option value="อนิเมะ">อนิเมะ</option>
-                </select>
-                <select id="filter-status" onchange="renderDashboard()">
-                    <option value="All">ทุกสถานะ</option>
-                    <option value="ยังไม่จบ">ยังไม่จบ</option>
-                    <option value="จบแล้ว">จบแล้ว</option>
-                </select>
-                <input type="text" id="search-bar" placeholder="🔍 ค้นหาชื่อเรื่อง หรือ แท็ก..." oninput="renderDashboard()" style="min-width: 250px;">
+        <div class="search-filter-container">
+            <div class="search-bar-wrapper">
+                <span style="font-size: 1.2rem; margin-right: 5px;">🔍</span>
+                <input type="text" id="search-bar" placeholder="ค้นหาชื่อเรื่อง, ผู้แต่ง, หรือแท็ก..." oninput="renderDashboard()">
             </div>
-            <div>
-                <select id="sort-by" onchange="renderDashboard()">
-                    <option value="date-desc">วันที่บันทึก (ใหม่ล่าสุด → เก่าสุด)</option>
-                    <option value="date-asc">วันที่บันทึก (เก่าสุด → ใหม่ล่าสุด)</option>
-                    <option value="rating-desc">คะแนน (มากสุด → น้อยสุด)</option>
-                    <option value="rating-asc">คะแนน (น้อยสุด → มากสุด)</option>
+            
+            <div class="filter-controls">
+                <select id="filter-status" onchange="renderDashboard()" class="modern-select">
+                    <option value="All">📚 ทุกสถานะ</option>
+                    <option value="ยังไม่จบ">⏳ ยังไม่จบ</option>
+                    <option value="จบแล้ว">✅ จบแล้ว</option>
+                </select>
+
+                <select id="sort-by" onchange="renderDashboard()" class="modern-select">
+                    <option value="date-desc">🆕 เพิ่มล่าสุด</option>
+                    <option value="date-asc">⏳ เพิ่มเก่าสุด</option>
+                    <option value="rating-desc">⭐ คะแนนสูงสุด</option>
+                    <option value="rating-asc">⭐ คะแนนต่ำสุด</option>
                 </select>
             </div>
         </div>
+
+
 
         <div class="manga-grid" id="manga-container">
             <div style="color: #6b7280; text-align: center; grid-column: 1 / -1; padding: 40px;">
